@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego del Ahorcado</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #1E3A5F; /* Fondo azul oscuro */
+            color: white; /* Texto blanco para mejor contraste */
+        }
+
+        #logo {
+            width: 150px; /* Tamaño del logo */
+            margin-top: 20px;
+        }
+
+        #game-container, #start-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #start-container.active, #game-container.active {
+            display: inline-block;
+        }
+
+        #ahorcado-canvas, #intro-canvas {
+            border: 1px solid #000;
+            margin-bottom: 20px;
+            background-color: white; /* Fondo blanco para el canvas */
+        }
+
+        #palabra-container {
+            font-size: 24px;
+            letter-spacing: 10px;
+            margin-bottom: 20px;
+        }
+
+        #pista-container {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        #letra-input {
+            font-size: 18px;
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        #adivinar-btn, #start-btn, #menu-btn, #replay-btn {
+            font-size: 18px;
+            padding: 5px 10px;
+            background-color: #4CAF50; /* Botones verdes */
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        #adivinar-btn:hover, #start-btn:hover, #menu-btn:hover, #replay-btn:hover {
+            background-color: #45a049; /* Cambio de color al pasar el ratón */
+        }
+
+        #mensaje {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        .animation-step {
+            display: none;
+        }
+
+        .animation-step.active {
+            display: block;
+        }
+
+        #animation {
+            font-size: 24px;
+            margin-bottom: 20px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        #game-container {
+            display: none;
+            margin-top: 20px;
+            background-image: url('fondo.jpeg'); /* Ruta de la imagen de fondo */
+            background-size: cover; /* Hacer que la imagen cubra todo el contenedor */
+            background-position: center; /* Centrar la imagen */
+            padding: 20px; /* Añadir relleno para un mejor espaciado */
+            color: black; /* Cambiar el color del texto a negro */
+        }
+    </style>
+</head>
+<body>
+    <div id="start-container" class="active">
+        <img id="logo" src="OIP (5).jpeg" alt="Logo del Juego">
+        <h1>Juego didáctico y aprendizaje de las culturas del Zulia PSM</h1>
+        <div id="animation">¡Bienvenidos al juego del Ahorcado!</div>
+        <canvas id="intro-canvas" width="200" height="200"></canvas>
+        <button id="start-btn">Comenzar a jugar</button>
+    </div>
+    <div id="game-container">
+        <h1>Juego del Ahorcado</h1>
+        <canvas id="ahorcado-canvas" width="200" height="200"></canvas>
+        <div id="pista-container"></div>
+        <div id="palabra-container"></div>
+        <input type="text" id="letra-input" maxlength="1" placeholder="Introduce una letra">
+        <button id="adivinar-btn">Adivinar</button>
+        <div id="mensaje"></div>
+        <button id="menu-btn" style="display: none;">Volver al Menú</button>
+        <button id="replay-btn" style="display: none;">Volver a Jugar</button>
+    </div>
+    <script>
+        const palabras = [
+            { palabra: "hayaca", pista: "Plato típico navideño en el Zulia" },
+            { palabra: "chinita", pista: "Virgen patrona del Zulia" },
+            { palabra: "maracaibo", pista: "Ciudad principal del Zulia" },
+            { palabra: "petroleo", pista: "Recurso natural importante en el Zulia" },
+            { palabra: "basilica", pista: "Lugar donde se venera a la Chinita" },
+            { palabra: "chimbanguele", pista: "Baile tradicional zuliano" },
+            { palabra: "patacon", pista: "Plato típico a base de plátano verde frito" },
+            { palabra: "rafaelurdaneta", pista: "Militar Político Zuliano" },
+            { palabra: "guajira", pista: "Pueblo indígena del Zulia" },
+            { palabra: "gaita", pista: "Músicas que se tocan y cantan en diciembre" }
+        ];
+
+        let seleccion = palabras[Math.floor(Math.random() * palabras.length)];
+        let palabra = seleccion.palabra;
+        let pista = seleccion.pista;
+        let letrasAdivinadas = [];
+        let intentos = 8;
+
+        const startContainer = document.getElementById('start-container');
+        const gameContainer = document.getElementById('game-container');
+        const startBtn = document.getElementById('start-btn');
+        const palabraContainer = document.getElementById('palabra-container');
+        const pistaContainer = document.getElementById('pista-container');
+        const letraInput = document.getElementById('letra-input');
+        const adivinarBtn = document.getElementById('adivinar-btn');
+        const mensaje = document.getElementById('mensaje');
+        const canvas = document.getElementById('ahorcado-canvas');
+        const ctx = canvas.getContext('2d');
+        const introCanvas = document.getElementById('intro-canvas');
+        const introCtx = introCanvas.getContext('2d');
+        const menuBtn = document.getElementById('menu-btn');
+        const replayBtn = document.getElementById('replay-btn');
+
+        startBtn.addEventListener('click', () => {
+            startContainer.classList.remove('active');
+            gameContainer.classList.add('active');
+            iniciarJuego();
+        });
+
+        menuBtn.addEventListener('click', () => {
+            gameContainer.classList.remove('active');
+            startContainer.classList.add('active');
+            resetGame();
+            animacionIntroduccion();
+        });
+
+        replayBtn.addEventListener('click', () => {
+            resetGame();
+            iniciarJuego();
+        });
+
+        function resetGame() {
+            letrasAdivinadas = [];
+            intentos = 8;
+            seleccion = palabras[Math.floor(Math.random() * palabras.length)];
+            palabra = seleccion.palabra;
+            pista = seleccion.pista;
+            mensaje.textContent = '';
+            adivinarBtn.disabled = false;
+            letraInput.disabled = false;
+            menuBtn.style.display = 'none';
+            replayBtn.style.display = 'none';
+            dibujarAhorcado();
+            mostrarProgreso();
+        }
+
+        // Dibujar la animación del ahorcado en la pantalla de inicio
+        function animacionIntroduccion() {
+            const etapas = [
+                () => {
+                    introCtx.clearRect(0, 0, introCanvas.width, introCanvas.height);
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(10, 190);
+                    introCtx.lineTo(190, 190);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(50, 190);
+                    introCtx.lineTo(50, 10);
+                    introCtx.lineTo(150, 10);
+                    introCtx.lineTo(150, 30);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.arc(150, 50, 20, 0, Math.PI * 2);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(150, 70);
+                    introCtx.lineTo(150, 130);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(150, 90);
+                    introCtx.lineTo(130, 110);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(150, 90);
+                    introCtx.lineTo(170, 110);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(150, 130);
+                    introCtx.lineTo(130, 160);
+                    introCtx.stroke();
+                },
+                () => {
+                    introCtx.beginPath();
+                    introCtx.moveTo(150, 130);
+                    introCtx.lineTo(170, 160);
+                    introCtx.stroke();
+                },
+                () => {
+                    // Ojos (X)
+                    introCtx.beginPath();
+                    introCtx.moveTo(140, 40);
+                    introCtx.lineTo(145, 45);
+                    introCtx.moveTo(145, 40);
+                    introCtx.lineTo(140, 45);
+                    introCtx.moveTo(155, 40);
+                    introCtx.lineTo(160, 45);
+                    introCtx.moveTo(160, 40);
+                    introCtx.lineTo(155, 45);
+                    introCtx.stroke();
+                }
+            ];
+
+            let currentStep = 0;
+            const interval = setInterval(() => {
+                if (currentStep < etapas.length) {
+                    etapas[currentStep]();
+                    currentStep++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 500);
+        }
+
+        // Dibujar el progreso del ahorcado
+        function dibujarAhorcado() {
+            const etapas = [
+                () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(10, 190);
+                    ctx.lineTo(190, 190);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(50, 190);
+                    ctx.lineTo(50, 10);
+                    ctx.lineTo(150, 10);
+                    ctx.lineTo(150, 30);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.arc(150, 50, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(150, 70);
+                    ctx.lineTo(150, 130);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(150, 90);
+                    ctx.lineTo(130, 110);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(150, 90);
+                    ctx.lineTo(170, 110);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(150, 130);
+                    ctx.lineTo(130, 160);
+                    ctx.stroke();
+                },
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(150, 130);
+                    ctx.lineTo(170, 160);
+                    ctx.stroke();
+                },
+                () => {
+                    // Ojos (X)
+                    ctx.beginPath();
+                    ctx.moveTo(140, 40);
+                    ctx.lineTo(145, 45);
+                    ctx.moveTo(145, 40);
+                    ctx.lineTo(140, 45);
+                    ctx.moveTo(155, 40);
+                    ctx.lineTo(160, 45);
+                    ctx.moveTo(160, 40);
+                    ctx.lineTo(155, 45);
+                    ctx.stroke();
+                }
+            ];
+
+            if (intentos >= 0 && intentos < etapas.length) {
+                etapas[9 - intentos]();
+            }
+        }
+
+        // Mostrar el progreso de la palabra
+        function mostrarProgreso() {
+            const progreso = palabra.split('').map(letra => (letrasAdivinadas.includes(letra) ? letra : '_')).join(' ');
+            palabraContainer.textContent = progreso;
+        }
+
+        // Manejar el intento de adivinar una letra
+        function adivinarLetra() {
+            const letra = letraInput.value.toLowerCase();
+            letraInput.value = '';
+
+            if (!letra || letrasAdivinadas.includes(letra)) {
+                mensaje.textContent = 'Ya has adivinado esa letra o no has introducido ninguna letra.';
+                return;
+            }
+
+            if (palabra.includes(letra)) {
+                letrasAdivinadas.push(letra);
+                mensaje.textContent = '¡Bien hecho! La letra está en la palabra.';
+            } else {
+                intentos--;
+                dibujarAhorcado();
+                mensaje.textContent = `Letra incorrecta. Te quedan ${intentos} intentos.`;
+            }
+
+            mostrarProgreso();
+
+            if (!palabra.split('').some(letra => !letrasAdivinadas.includes(letra))) {
+                mensaje.textContent = '¡Felicidades! Has adivinado la palabra.';
+                adivinarBtn.disabled = true;
+                letraInput.disabled = true;
+                menuBtn.style.display = 'inline';
+                replayBtn.style.display = 'inline';
+            } else if (intentos === 0) {
+                mensaje.textContent = `Lo siento, has perdido. La palabra era '${palabra}'.`;
+                adivinarBtn.disabled = true;
+                letraInput.disabled = true;
+                menuBtn.style.display = 'inline';
+                replayBtn.style.display = 'inline';
+            }
+        }
+
+        adivinarBtn.addEventListener('click', adivinarLetra);
+        letraInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                adivinarLetra();
+            }
+        });
+
+        // Inicialización del juego
+        function iniciarJuego() {
+            pistaContainer.textContent = `Pista: ${pista}`;
+            mostrarProgreso();
+            dibujarAhorcado();
+        }
+
+        // Iniciar animación de introducción
+        animacionIntroduccion();
+    </script>
+</body>
+</html>
